@@ -14,7 +14,7 @@ class Motor:
                  cmd_rate_ms: int = 50):
         self.port = port_handler
         self.id = dxl_id
-        self.packet_handler = dxl.PacketHandler(protocol_version=2)
+        self.packet_handler = dxl.PacketHandler(protocol_version=1)
         self.LIMIT = motion_limit
         self.ENCODER_RESOLUTION = encoder_resolution
         self.MOVING_THRESHOLD = moving_threshold
@@ -29,15 +29,18 @@ class Motor:
     def __del__(self):
         self.reset()
 
-    def reset(self):
-        self.enable(False)
+    def reset(self, wait=False):
+        self.enable(False, wait=wait)
 
     def in_range(self, value):
         return self.LIMIT.MIN <= value <= self.LIMIT.MAX
 
-    def enable(self, enable=True):
-        self.write(ADDR.TORQUE_ENABLE, enable, 1)
-        self.current_position = self.read(ADDR.PRESENT_POSITION, self.byte_map.POSITION)
+    def enable(self, enable=True, wait=False):
+        self.write(ADDR.TORQUE_ENABLE, 1 if enable else 0, 1)
+
+        if enable:
+            self.current_position = self.read_position()
+            self.move_to_position(INITIAL_POSITIONS[self.id], 1, wait=wait)
 
     def rotate(self, value: float, duration: float, is_percent=False):
         """
@@ -61,10 +64,9 @@ class Motor:
     def get_rpm_ticks(self, target, duration):
         velocity = self.ticks2angle(abs(self.current_position - target)) / duration
         rpm = velocity * 60 / (2 * math.pi)
-
         return int(round(rpm / 0.114))  # refer: https://emanual.robotis.com/docs/en/dxl/mx/mx-28/#moving-speed
 
-    def move_to_position(self, position: int, duration: float):
+    def move_to_position(self, position: int, duration: float, wait=False):
         if not self.in_range(position):
             raise NotInRangeException
 
@@ -74,50 +76,57 @@ class Motor:
         rpm_ticks = self.get_rpm_ticks(position, duration)
 
         if rpm_ticks >= 1024:
-            raise NotInRangeException
+            print(f"rpm too high: {rpm_ticks}")
+            rpm_ticks = min(rpm_ticks, 1023)
 
+        # print(f"id: {self.id}, pos: {position}, dur: {duration}, rpm: {rpm_ticks}")
         try:
             self.write(ADDR.GOAL_VELOCITY, rpm_ticks, size=self.byte_map.VELOCITY)
             self.write(ADDR.GOAL_POSITION,
                        position,
                        size=self.byte_map.POSITION,
-                       read_addr=ADDR.PRESENT_POSITION)
+                       read_addr=ADDR.PRESENT_POSITION if wait else None)
 
             self.last_cmd_time = time.time()
             self.current_position = position
         except DxlCommError:
             print("Dynamixel Communication Error")
 
+    def read_position(self):
+        pos = self.read(ADDR.PRESENT_POSITION, size=self.byte_map.POSITION)
+        self.current_position = pos
+        return pos
+
     def read(self, addr: int, size: int):
-        value = 0
+        value = self.current_position
         if not SIMULATE:
-            value, res, err = self.packet_handler.readTxRx(self.port, self.id, addr, size)
+            value, res, err = self.packet_handler.read2ByteTxRx(self.port, self.id + 1, addr)
             if res != dxl.COMM_SUCCESS or err != 0:
+                print(res, err)
                 raise DxlCommError
         return value
 
-    def write(self, write_addr: int, data: int, size: int, read_addr: int or None = None,
-              timeout_ms: int or None = ACK_TIMEOUT_MS):
+    def write(self, write_addr: int, data: int, size: int, read_addr: int or None = None):
         if size not in self.byte_length:
             raise IllegalSizeException
 
-        if timeout_ms < 0:
-            timeout_ms = None
-
         if not SIMULATE:
-            if read_addr is not None:
-                res, err = self.packet_handler.writeTxRx(self.port, self.id, write_addr, size, data)
-            else:
-                res, err = self.packet_handler.writeTxOnly(self.port, self.id, write_addr, size, data)
+            err = 0
+            res = dxl.COMM_SUCCESS
+
+            if size == 1:
+                res, err = self.packet_handler.write1ByteTxRx(self.port, self.id + 1, write_addr, data)
+            elif size == 2:
+                res, err = self.packet_handler.write2ByteTxRx(self.port, self.id + 1, write_addr, data)
+            elif size == 4:
+                res, err = self.packet_handler.write4ByteTxRx(self.port, self.id + 1, write_addr, data)
 
             if res != dxl.COMM_SUCCESS or err != 0:
                 raise DxlCommError
 
             if read_addr is not None:
                 t = time.time()
-                timeout = float("inf")
-                if timeout_ms is not None:
-                    timeout = timeout_ms / 1000.0
+                timeout = float("inf") if ACK_TIMEOUT_MS <= 0 else ACK_TIMEOUT_MS / 1000.0
 
                 while time.time() - t < timeout:
                     ret_data, res, err = self.packet_handler.readTxRx(self.port, self.id, read_addr, size)
@@ -126,5 +135,6 @@ class Motor:
 
                     if abs(data - ret_data) < self.MOVING_THRESHOLD:
                         break
+
         else:
-            time.sleep(0.001)
+            time.sleep(0.005)

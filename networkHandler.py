@@ -6,6 +6,7 @@ from enum import IntEnum
 class NetworkCommand(IntEnum):
     STOP = 0
     START = 1
+    PREPARE = 2  # contains data payload -> [genre: <genre> song_name: <song_name>]
 
 
 class NetworkHandler:
@@ -14,7 +15,6 @@ class NetworkHandler:
         self.callback = command_callback
 
         self.thread = threading.Thread(target=self.recv_handler)
-        self.mutex = threading.Lock()
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -50,4 +50,3 @@ class NetworkHandler:
             data = int.from_bytes(data, "little")
             if self.callback:
                 self.callback(NetworkCommand(data))
-

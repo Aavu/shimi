@@ -1,5 +1,6 @@
+import time
 import wave
-
+from definitions import OUTPUT_AUDIO_DEVICE
 import numpy as np
 import pyaudio
 
@@ -14,12 +15,28 @@ class AudioProcessor:
         self.stream: pyaudio.Stream or None = None
         self.is_playing = False
 
+        self.output_device_id = 0
+        self.config_device()
+
     def __del__(self):
         self.terminate()
 
     def terminate(self):
         self.stop()
         self.pya.terminate()
+
+    def config_device(self):
+        print("----------------------device list---------------------")
+        info = self.pya.get_host_api_info_by_index(0)
+        num_devices = info.get('deviceCount')
+        for i in range(num_devices):
+            if (self.pya.get_device_info_by_host_api_device_index(0, i).get('maxInputChannels')) > 0:
+                name = self.pya.get_device_info_by_host_api_device_index(0, i).get('name')
+                print(name)
+                if name == OUTPUT_AUDIO_DEVICE:
+                    self.output_device_id = i
+                    print(f"Output device set to '{name}' with id {self.output_device_id}")
+        print("-------------------------------------------------------------")
 
     @staticmethod
     def dtype2width(dtype) -> int:
@@ -72,8 +89,11 @@ class AudioProcessor:
         interleaved = interleaved * (2 ** (w - 1))
         return interleaved.astype(dtype).tobytes()
 
-    def play(self, audio_file_path: str):
+    def play(self, audio_file_path: str, delay_ms=0):
+        delay_gestures = delay_ms < 0
+        delay = abs(delay_ms / 1000.0)
         self.is_playing = True
+        play_idx = 0
         with wave.open(audio_file_path, "rb") as wf:
             if wf.getframerate() != self.fs:
                 print(f"Warning: Sample rate mismatch. ({self.fs}), ({wf.getframerate()})")
@@ -82,13 +102,23 @@ class AudioProcessor:
                                         format=self.pya.get_format_from_width(wf.getsampwidth()),
                                         input=False, output=True,
                                         frames_per_buffer=self.chunk_size)
-            while len(data := wf.readframes(self.chunk_size)) and self.is_playing:
-                if self.callback:
+
+            chunk_duration_sec = self.chunk_size / self.fs
+            num_dly_chunks = int(round(delay / chunk_duration_sec))
+            zeros = np.zeros((self.chunk_size * wf.getnchannels()), dtype=np.int16)
+
+            data = zeros if play_idx < num_dly_chunks and not delay_gestures else wf.readframes(self.chunk_size)
+            while len(data) and self.is_playing:
+                if self.callback and not delay_gestures:
                     dtype = self.width2dtype(wf.getsampwidth())
                     data = self.decode(data, wf.getnchannels(), dtype)
                     data = self.callback(data)
                     data = self.encode(data, dtype)
                 self.stream.write(data)
+                data = zeros if play_idx < num_dly_chunks and not delay_gestures else wf.readframes(self.chunk_size)
+                play_idx += 1
+                if play_idx >= num_dly_chunks:
+                    delay_gestures = False
 
     def stop(self):
         self.is_playing = False

@@ -1,10 +1,12 @@
-from enum import IntEnum
+from enum import IntEnum, Enum
 from typing import NamedTuple
 
 SIMULATE = True
 
-PORT_NAME = "USB0"
-BAUD_RATE = 57600
+OUTPUT_AUDIO_DEVICE = "USB Audio Device"
+
+PORT_NAME = "/dev/tty.usbserial-FT62AO7Z"
+BAUD_RATE = 1000000
 ENCODER_RESOLUTION = 4096
 ACK_TIMEOUT_MS = 100
 
@@ -28,14 +30,22 @@ class LIMIT:
 
 
 LIMITS = [
-    LIMIT(0, ENCODER_RESOLUTION // 2),
-    LIMIT(0, ENCODER_RESOLUTION // 2),
-    LIMIT(0, ENCODER_RESOLUTION // 2),
-    LIMIT(0, ENCODER_RESOLUTION // 2),
-    LIMIT(0, ENCODER_RESOLUTION // 2),
+    LIMIT(1929, 2214),
+    LIMIT(1400, 2210),
+    LIMIT(1730, 2175),
+    LIMIT(0, ENCODER_RESOLUTION - 1),
+    LIMIT(2110, 2300),
 ]
 
+INITIAL_POSITIONS = [2214, 1805, 2175, 0, 2110]
 
 class PARAM_BYTE_LENGTH_MAP(NamedTuple):
     POSITION = 2
     VELOCITY = 2
+
+
+class Genre(Enum):
+    POP = "pop"
+    EDM = "edm"
+    FUNK = "funk"
+    ROCK = "rock"
