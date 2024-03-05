@@ -103,6 +103,6 @@ class Shimi:
                 continue
 
             # We don't need to worry about time here since the commands are appended at the time it needs to be executed
-            print(i, cmd)
+            print(i, self.cmd_queue.qsize(), cmd)
             i += 1
             self.motors[cmd.dxl_id].rotate(cmd.angle, cmd.duration, is_percent=True)

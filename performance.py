@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import os
 import signal
@@ -85,18 +87,24 @@ class Performance:
         return gestures
 
     def compose_gestures(self):
-        segments = self.song.segments
         song_gesture = []
         offset = 0
-        for i in range(1, len(segments)):
+        last_idx = -1
+
+        print(f"segments: {self.song.segments}")
+        for i in range(1, len(self.song.segments)):
 
             # left and right boundaries
-            l, r = self.sec2beats(segments[i - 1]), self.sec2beats(segments[i])
+            l, r = self.sec2beats(self.song.segments[i - 1]), self.sec2beats(self.song.segments[i])
             seg_len = r - l
 
             # choose a random gesture
             gestures = self.gesture_library[self.song.genre]
-            idx = np.random.randint(0, len(gestures), dtype=int)
+
+            # choose a random index (non-repeating) for gesture
+            idx = random.choice([ii for ii in range(len(gestures)) if ii != last_idx])
+            last_idx = idx
+
             g: List[Command] = gestures[idx]
             g_dur = g[-1].start_beat + g[-1].duration
             num_loops = int(seg_len // g_dur)
@@ -124,7 +132,8 @@ class Performance:
                 c.start_beat += offset
                 seg_gesture.append(c)
 
-            offset = round(seg_len)
+            offset += residual_dur
+
             song_gesture.extend(seg_gesture)
 
         return song_gesture
@@ -164,6 +173,10 @@ class Performance:
 
         if self.gesture_idx < len(self.gestures):
             cmd: Command = self.gestures[self.gesture_idx]
+            # if self.gesture_idx > 420:
+            #     print(f"{self.gesture_idx}, "
+            #           f"{cmd.start_beat}, "
+            #           f"{np.round(l, 3)} <= {np.round(self.beats2sec(cmd.start_beat), 3)} < {np.round(r, 3)}")
 
             # Add all the commands within this frame to the queue
             while l <= self.beats2sec(cmd.start_beat) < r:
