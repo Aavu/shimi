@@ -1,3 +1,4 @@
+import copy
 import queue
 import time
 
@@ -22,7 +23,7 @@ class Command:
         return self.dxl_id >= 0 and self.duration > 0
 
     def __repr__(self):
-        return f"id: {self.dxl_id} \t angle: {self.angle} \t start: {self.start_beat} \t period: {self.duration} sec"
+        return f"id: {self.dxl_id} \t angle: {self.angle} \t start: {self.start_beat} \t period: {self.duration:.3f}sec"
 
 
 class Shimi:
@@ -57,26 +58,37 @@ class Shimi:
         self.terminate()
 
     def terminate(self):
-        self.is_running = False
-        self.stop()
-
-        for i, m in enumerate(self.motors):
-            m.reset(wait=i == len(self.motors) - 1)
-
-        if self.thread.is_alive():
-            self.thread.join()
-
+        self.join()
         if self.port and self.port.is_open:
             self.port.closePort()
 
     def start(self):
-        for m in self.motors:
-            m.enable()
+        """
+        Enable motors and start the queue thread
+        :return:
+        """
+        for i, m in enumerate(self.motors):
+            m.enable(wait=i == len(self.motors) - 1)
         self.is_running = True
         self.thread.start()
 
-    def stop(self):
+    def join(self):
+        self.is_running = False
+        self.stop()
+
+        if self.thread.is_alive():
+            self.thread.join()
+
+    def stop(self, reset_positions=True):
+        """
+        Reset the queue. If reset_positions, reset the robot to initial positions.
+        Note: This is for the thread. It will not disable motors.
+        :param reset_positions: Whether the robot should go home (initial positions)
+        :return: None
+        """
         self.cmd_queue = queue.Queue()
+        for i, m in enumerate(self.motors):
+            m.reset_position(wait=i == len(self.motors) - 1)
 
     def append_command(self, command: Command):
         with self.cv:
@@ -95,14 +107,15 @@ class Shimi:
                 # There can be spurious awake. Use try catch to eliminate null
                 with self.mutex:
                     try:
-                        cmd: Command = self.cmd_queue.get_nowait()
+                        cmd: Command = copy.copy(self.cmd_queue.get_nowait())
                     except queue.Empty:
                         continue
+                    self.cmd_queue.task_done()
 
             if not cmd.is_valid:
                 continue
 
             # We don't need to worry about time here since the commands are appended at the time it needs to be executed
-            print(i, self.cmd_queue.qsize(), cmd)
+            print(i, cmd)
             i += 1
             self.motors[cmd.dxl_id].rotate(cmd.angle, cmd.duration, is_percent=True)

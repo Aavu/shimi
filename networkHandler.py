@@ -1,15 +1,28 @@
 import socket
 import threading
 from enum import IntEnum
+import json
+from typing import NamedTuple
 
 
 class NetworkCommand(IntEnum):
     STOP = 0
     START = 1
-    PREPARE = 2  # contains data payload -> [genre: <genre> song_name: <song_name>]
+    PREPARE = 2  # contains data payload -> [<genre> <song_name>]
+
+
+class Packet(NamedTuple):
+    command: NetworkCommand
+    genre: str = ""
+    song: str = ""
+
+    def __repr__(self):
+        return f"cmd: {self.command.name} \t genre: {self.genre} \t song: {self.song}"
 
 
 class NetworkHandler:
+    RECV_BUFFER = 128
+
     def __init__(self, port, command_callback=None, timeout_sec=0.25):
         self.port = port
         self.callback = command_callback
@@ -39,14 +52,19 @@ class NetworkHandler:
         self.is_running = True
         self.thread.start()
 
+    @staticmethod
+    def parse_packet(packet: bytes):
+        data: dict = json.loads(packet.decode())
+        return Packet(NetworkCommand(data["cmd"]), data.get("genre"), data.get("song"))
+
     def recv_handler(self):
         while self.is_running:
             data = None
             try:
-                data, addr = self.sock.recvfrom(1)
+                data, addr = self.sock.recvfrom(NetworkHandler.RECV_BUFFER)
             except socket.timeout:
                 continue
 
-            data = int.from_bytes(data, "little")
+            data = self.parse_packet(data)
             if self.callback:
-                self.callback(NetworkCommand(data))
+                self.callback(data)

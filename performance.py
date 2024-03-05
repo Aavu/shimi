@@ -6,7 +6,7 @@ import signal
 from shimi import Shimi, Command
 from definitions import *
 from audioProcessor import AudioProcessor
-from networkHandler import NetworkCommand, NetworkHandler
+from networkHandler import NetworkCommand, NetworkHandler, Packet
 import threading
 from util import Util
 from song import Song
@@ -27,7 +27,8 @@ class Performance:
 
         self.audio_processor = AudioProcessor(chunk_size=self.chunk_size,
                                               sample_rate=sample_rate,
-                                              audio_callback=self.callback)
+                                              audio_callback=self.callback,
+                                              complete_callback=self.song_complete_callback)
         self.shimi = Shimi(LIMITS)
         self.udp = NetworkHandler(UDP_PORT, self.network_callback, timeout_sec=0.25)
         self.gesture_idx = 0
@@ -35,7 +36,6 @@ class Performance:
 
         self.song = None
 
-        self.perform_thread = threading.Thread(target=self.perform)
         signal.signal(signal.SIGINT, self.sig_handle)
         self.shimi.start()
         self.udp.start()
@@ -60,6 +60,11 @@ class Performance:
         self.audio_processor.terminate()
         self.udp.terminate()
         self.shimi.terminate()
+
+    def join(self):
+        self.audio_processor.stop()
+        self.udp.join()
+        self.shimi.join()
 
     def beats2sec(self, beats):
         return beats * (60.0 / self.song.tempo)
@@ -148,24 +153,18 @@ class Performance:
         self.gesture_idx = 0
         self.play_idx = 0
 
-        g = self.load_gesture("test.csv")
+        # g = self.load_gesture("test.csv")
         self.gestures = self.compose_gestures()
-
-    def perform(self, delay_ms=0):
-        self.audio_processor.play(self.song.audio_path, delay_ms=delay_ms)
-        self.stop()
 
     def stop(self):
         self.audio_processor.stop()
-        if self.perform_thread.is_alive():
-            self.perform_thread.join()
-        self.shimi.stop()
+        self.shimi.stop(reset_positions=True)
 
     def callback(self, data: np.ndarray):
         # Haptic vibrations
         audio = np.mean(data, axis=1)
         data[:, 0] = audio
-        data[:, 1] = Util.biquad_lpf(audio, fc=200, fs=self.fs) * 2
+        data[:, 1] = Util.biquad_lpf(audio, fc=200, fs=self.fs) * 1.5
 
         # Motor actuation
         l = self.play_idx * self.chunk_size / self.fs
@@ -173,10 +172,6 @@ class Performance:
 
         if self.gesture_idx < len(self.gestures):
             cmd: Command = self.gestures[self.gesture_idx]
-            # if self.gesture_idx > 420:
-            #     print(f"{self.gesture_idx}, "
-            #           f"{cmd.start_beat}, "
-            #           f"{np.round(l, 3)} <= {np.round(self.beats2sec(cmd.start_beat), 3)} < {np.round(r, 3)}")
 
             # Add all the commands within this frame to the queue
             while l <= self.beats2sec(cmd.start_beat) < r:
@@ -190,13 +185,13 @@ class Performance:
         self.play_idx += 1
         return data
 
-    def network_callback(self, command: NetworkCommand, data):
-        if command == NetworkCommand.START:
-            if self.perform_thread.is_alive():
-                print("Performance in progress. New performance cannot be accepted yet...")
-            else:
-                genre, song_name = data
-                self.prepare(Song(self.song_lib_path, Genre(genre), song_name, self.fs))
-                self.perform_thread.start()
-        elif command == NetworkCommand.STOP:
+    def song_complete_callback(self):
+        self.shimi.stop(reset_positions=True)
+
+    def network_callback(self, data: Packet):
+        if data.command == NetworkCommand.START:
+            self.stop()
+            self.prepare(Song(self.song_lib_path, Genre(data.genre), data.song, self.fs))
+            self.audio_processor.play(self.song.audio_path, delay_ms=0, block=False)
+        elif data.command == NetworkCommand.STOP:
             self.stop()

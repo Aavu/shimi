@@ -42,6 +42,9 @@ class Motor:
             self.current_position = self.read_position()
             self.move_to_position(INITIAL_POSITIONS[self.id], 1, wait=wait)
 
+    def reset_position(self, wait=False):
+        self.move_to_position(INITIAL_POSITIONS[self.id], 1, wait=wait)
+
     def rotate(self, value: float, duration: float, is_percent=False):
         """
         Rotate the motor with value either in radians or % of limit dictated by is_percent

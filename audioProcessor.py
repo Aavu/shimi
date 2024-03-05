@@ -3,17 +3,21 @@ import wave
 from definitions import OUTPUT_AUDIO_DEVICE
 import numpy as np
 import pyaudio
-
+import threading
 
 class AudioProcessor:
-    def __init__(self, chunk_size=256, sample_rate=44100, audio_callback=None):
+    def __init__(self, chunk_size=256, sample_rate=44100, audio_callback=None, complete_callback=None):
         self.chunk_size = chunk_size
         self.fs = sample_rate
         self.callback = audio_callback
+        self.complete_callback = complete_callback
 
         self.pya = pyaudio.PyAudio()
         self.stream: pyaudio.Stream or None = None
         self.is_playing = False
+        self.play_idx = 0
+        self.mutex = threading.Lock()
+        self.play_thread = None
 
         self.output_device_id = 0
         self.config_device()
@@ -89,7 +93,23 @@ class AudioProcessor:
         interleaved = interleaved * (2 ** (w - 1))
         return interleaved.astype(dtype).tobytes()
 
-    def play(self, audio_file_path: str, delay_ms=0):
+    def play(self, audio_file_path: str, delay_ms=0, block=False):
+        self.play_thread = threading.Thread(target=self.play_handler, args=(audio_file_path, delay_ms))
+        self.play_thread.start()
+        if block:
+            self.play_thread.join()
+
+    def stop(self, join=True):
+        self.is_playing = False
+        if self.stream:
+            with self.mutex:
+                self.stream.close()
+
+        if join:
+            if self.play_thread and self.play_thread.is_alive():
+                self.play_thread.join()
+
+    def play_handler(self, audio_file_path, delay_ms):
         delay_gestures = delay_ms < 0
         delay = abs(delay_ms / 1000.0)
         self.is_playing = True
@@ -114,13 +134,11 @@ class AudioProcessor:
                     data = self.decode(data, wf.getnchannels(), dtype)
                     data = self.callback(data)
                     data = self.encode(data, dtype)
-                self.stream.write(data)
+                with self.mutex:
+                    self.stream.write(data)
                 data = zeros if play_idx < num_dly_chunks and not delay_gestures else wf.readframes(self.chunk_size)
                 play_idx += 1
                 if play_idx >= num_dly_chunks:
                     delay_gestures = False
 
-    def stop(self):
-        self.is_playing = False
-        if self.stream:
-            self.stream.close()
+        self.stop(join=False)   # join=False because we are in the same thread and no need to join here
