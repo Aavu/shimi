@@ -8,7 +8,7 @@ from typing import NamedTuple
 class NetworkCommand(IntEnum):
     STOP = 0
     START = 1
-    PREPARE = 2  # contains data payload -> [<genre> <song_name>]
+    PAUSE = 2
 
 
 class Packet(NamedTuple):

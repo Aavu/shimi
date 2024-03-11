@@ -3,7 +3,7 @@ from typing import NamedTuple
 
 SIMULATE = True
 
-OUTPUT_AUDIO_DEVICE = "USB Audio Device"
+OUTPUT_AUDIO_DEVICE = "LG HDR 4K"   # "USB Audio Device"
 
 PORT_NAME = "/dev/tty.usbserial-FT62AO7Z"
 BAUD_RATE = 1000000
@@ -38,6 +38,7 @@ LIMITS = [
 ]
 
 INITIAL_POSITIONS = [2214, 1805, 2175, 0, 2110]
+
 
 class PARAM_BYTE_LENGTH_MAP(NamedTuple):
     POSITION = 2

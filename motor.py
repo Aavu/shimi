@@ -59,7 +59,10 @@ class Motor:
         else:
             ticks = (value / (2 * math.pi)) * self.ENCODER_RESOLUTION
 
-        self.move_to_position(int(ticks), duration)
+        try:
+            self.move_to_position(int(ticks), duration)
+        except FastCommandException:
+            print("Fast command!")
 
     def ticks2angle(self, ticks: int):
         return (ticks * 1.0 / self.ENCODER_RESOLUTION) * (2 * math.pi)
@@ -136,7 +139,7 @@ class Motor:
                     if res != dxl.COMM_SUCCESS or err != 0:
                         raise DxlCommError
 
-                    if abs(data - ret_data) < self.MOVING_THRESHOLD:
+                    if abs(data - ret_data[0]) < self.MOVING_THRESHOLD:
                         break
 
         else:

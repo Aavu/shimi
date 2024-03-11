@@ -12,7 +12,7 @@ from util import Util
 from song import Song
 from typing import List, Tuple
 from copy import copy
-
+from exceptions import *
 
 class Performance:
     def __init__(self, song_library_path: str, gesture_library_path: str, chunk_size=256, sample_rate=44100):
@@ -33,6 +33,7 @@ class Performance:
         self.udp = NetworkHandler(UDP_PORT, self.network_callback, timeout_sec=0.25)
         self.gesture_idx = 0
         self.play_idx = 0
+        self.paused = False
 
         self.song = None
 
@@ -160,6 +161,15 @@ class Performance:
         self.audio_processor.stop()
         self.shimi.stop(reset_positions=True)
 
+    def pause(self):
+        try:
+            self.shimi.stop(reset_positions=True)
+        except FastCommandException:
+            pass
+
+        self.audio_processor.pause()
+        self.paused = True
+
     def callback(self, data: np.ndarray):
         # Haptic vibrations
         audio = np.mean(data, axis=1)
@@ -190,8 +200,12 @@ class Performance:
 
     def network_callback(self, data: Packet):
         if data.command == NetworkCommand.START:
-            self.stop()
-            self.prepare(Song(self.song_lib_path, Genre(data.genre), data.song, self.fs))
+            if not self.paused:
+                self.stop()
+                self.prepare(Song(self.song_lib_path, Genre(data.genre), data.song, self.fs))
+                self.paused = False
             self.audio_processor.play(self.song.audio_path, delay_ms=0, block=False)
         elif data.command == NetworkCommand.STOP:
             self.stop()
+        elif data.command == NetworkCommand.PAUSE:
+            self.pause()
