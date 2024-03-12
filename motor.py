@@ -43,7 +43,10 @@ class Motor:
             self.move_to_position(INITIAL_POSITIONS[self.id], 1, wait=wait)
 
     def reset_position(self, wait=False):
-        self.move_to_position(INITIAL_POSITIONS[self.id], 1, wait=wait)
+        try:
+            self.move_to_position(INITIAL_POSITIONS[self.id], 1, wait=wait)
+        except FastCommandException:
+            print("Warning: Fast Command")
 
     def rotate(self, value: float, duration: float, is_percent=False):
         """

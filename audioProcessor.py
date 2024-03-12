@@ -166,7 +166,10 @@ class AudioProcessor:
                     data = self.callback(data)
                     data = self.encode(data, dtype)
                 with self.mutex:
-                    self.stream.write(data)
+                    try:
+                        self.stream.write(data)
+                    except OSError:
+                        break
 
                 data = zeros[:]
                 if not self.paused:

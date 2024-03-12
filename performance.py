@@ -97,7 +97,7 @@ class Performance:
         offset = 0
         last_idx = -1
 
-        print(f"segments: {self.song.segments}")
+        # print(f"segments: {self.song.segments}")
         for i in range(1, len(self.song.segments)):
 
             # left and right boundaries
@@ -160,6 +160,7 @@ class Performance:
     def stop(self):
         self.audio_processor.stop()
         self.shimi.stop(reset_positions=True)
+        self.paused = False
 
     def pause(self):
         try:
@@ -174,7 +175,7 @@ class Performance:
         # Haptic vibrations
         audio = np.mean(data, axis=1)
         data[:, 0] = audio
-        data[:, 1] = Util.biquad_lpf(audio, fc=200, fs=self.fs) * 1.5
+        data[:, 1] = Util.biquad_lpf(audio, fc=100, fs=self.fs) * 2
 
         # Motor actuation
         l = self.play_idx * self.chunk_size / self.fs
@@ -200,7 +201,7 @@ class Performance:
 
     def network_callback(self, data: Packet):
         if data.command == NetworkCommand.START:
-            if not self.paused:
+            if not self.paused or (self.song and self.song._song_name != data.song):
                 self.stop()
                 self.prepare(Song(self.song_lib_path, Genre(data.genre), data.song, self.fs))
                 self.paused = False
