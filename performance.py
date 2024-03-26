@@ -7,12 +7,12 @@ from shimi import Shimi, Command
 from definitions import *
 from audioProcessor import AudioProcessor
 from networkHandler import NetworkCommand, NetworkHandler, Packet
-import threading
 from util import Util
 from song import Song
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from copy import copy
 from exceptions import *
+
 
 class Performance:
     def __init__(self, song_library_path: str, gesture_library_path: str, chunk_size=256, sample_rate=44100):
@@ -35,7 +35,7 @@ class Performance:
         self.play_idx = 0
         self.paused = False
 
-        self.song = None
+        self.song: Optional[Song] = None
 
         signal.signal(signal.SIGINT, self.sig_handle)
         self.shimi.start()
@@ -160,6 +160,8 @@ class Performance:
     def stop(self):
         self.audio_processor.stop()
         self.shimi.stop(reset_positions=True)
+        if self.song:
+            self.song.reset_lyric_idx()
         self.paused = False
 
     def pause(self):
@@ -171,6 +173,15 @@ class Performance:
         self.audio_processor.pause()
         self.paused = True
 
+    def pop_cmd(self) -> Command:
+        if self.gesture_idx < len(self.gestures):
+            cmd: Command = self.gestures[self.gesture_idx]
+            cmd.duration = self.beats2sec(cmd.duration)
+            cmd.start_beat = self.beats2sec(cmd.start_beat)
+            self.gesture_idx += 1
+            return cmd
+        return Command()    # return dummy command
+
     def callback(self, data: np.ndarray):
         # Haptic vibrations
         audio = np.mean(data, axis=1)
@@ -181,17 +192,17 @@ class Performance:
         l = self.play_idx * self.chunk_size / self.fs
         r = (self.play_idx + 1) * self.chunk_size / self.fs
 
-        if self.gesture_idx < len(self.gestures):
-            cmd: Command = self.gestures[self.gesture_idx]
+        lrc: List[dict[int, str]] = self.song.get_lyrics_between(l, r, num_future=2)
+        for line in lrc:
+            self.udp.queue_to_send(line)
 
-            # Add all the commands within this frame to the queue
-            while l <= self.beats2sec(cmd.start_beat) < r:
-                cmd.duration = self.beats2sec(cmd.duration)
-                self.shimi.append_command(cmd)
-                self.gesture_idx += 1
-                if self.gesture_idx >= len(self.gestures):
-                    break
-                cmd = self.gestures[self.gesture_idx]
+        # Add all the commands within this frame to the queue
+        cmd = self.pop_cmd()
+        w = cmd.start_beat - cmd.duration if cmd.dxl_id == 4 else cmd.start_beat
+        while cmd.is_valid and l <= w < r:
+            self.shimi.append_command(cmd)
+            cmd = self.pop_cmd()
+            w = cmd.start_beat - cmd.duration if cmd.dxl_id == 4 else cmd.start_beat
 
         self.play_idx += 1
         return data
@@ -201,7 +212,7 @@ class Performance:
 
     def network_callback(self, data: Packet):
         if data.command == NetworkCommand.START:
-            if not self.paused or (self.song and self.song._song_name != data.song):
+            if not self.paused or (self.song and self.song.id != data.song):
                 self.stop()
                 self.prepare(Song(self.song_lib_path, Genre(data.genre), data.song, self.fs))
                 self.paused = False

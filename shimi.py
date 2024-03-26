@@ -38,7 +38,6 @@ class Shimi:
         self.cmd_queue = queue.Queue()
         self.thread = Thread(target=self.thread_handler)
         self.cv = Condition()
-        self.mutex = Lock()
 
     def __init_port__(self):
         if self.port.is_open:
@@ -92,9 +91,8 @@ class Shimi:
 
     def append_command(self, command: Command):
         with self.cv:
-            with self.mutex:
-                self.cmd_queue.put_nowait(command)
-                self.cv.notifyAll()
+            self.cmd_queue.put_nowait(command)
+            self.cv.notifyAll()
 
     def thread_handler(self):
         i = 0
@@ -104,13 +102,12 @@ class Shimi:
                 if not self.is_running:
                     break
 
-                # There can be spurious awake. Use try catch to eliminate null
-                with self.mutex:
-                    try:
-                        cmd: Command = copy.copy(self.cmd_queue.get_nowait())
-                    except queue.Empty:
-                        continue
-                    self.cmd_queue.task_done()
+            # There can be spurious awake. Use try catch to eliminate null
+                try:
+                    cmd: Command = copy.copy(self.cmd_queue.get_nowait())
+                except queue.Empty:
+                    continue
+                self.cmd_queue.task_done()
 
             if not cmd.is_valid:
                 continue

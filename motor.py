@@ -1,6 +1,8 @@
 import math
 
 import dynamixel_sdk as dxl
+import numpy as np
+
 from definitions import *
 from exceptions import *
 import time
@@ -57,18 +59,23 @@ class Motor:
         :return: None
         """
         # No need to check angle limit here since we check position limits before writing
-        if is_percent:
-            ticks = self.LIMIT.MIN + ((self.LIMIT.MAX - self.LIMIT.MIN) * value)
-        else:
-            ticks = (value / (2 * math.pi)) * self.ENCODER_RESOLUTION
+        ticks = self.percent2ticks(value) if is_percent else self.angle2ticks(value, is_radian=True)
 
         try:
-            self.move_to_position(int(ticks), duration)
+            self.move_to_position(ticks, duration)
         except FastCommandException:
             print("Fast command!")
 
     def ticks2angle(self, ticks: int):
         return (ticks * 1.0 / self.ENCODER_RESOLUTION) * (2 * math.pi)
+
+    def percent2ticks(self, cent: float) -> int:
+        return int(self.LIMIT.MIN + ((self.LIMIT.MAX - self.LIMIT.MIN) * cent))
+
+    def angle2ticks(self, angle, is_radian=True) -> int:
+        if not is_radian:
+            angle = np.deg2rad(angle)
+        return int((angle / (2 * math.pi)) * self.ENCODER_RESOLUTION)
 
     def get_rpm_ticks(self, target, duration):
         velocity = self.ticks2angle(abs(self.current_position - target)) / duration
