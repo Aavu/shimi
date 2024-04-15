@@ -109,7 +109,7 @@ class Performance:
         offset = 0
         last_idx = -1
 
-        print(f"segments: {self.song.segments}")
+        # print(f"segments: {self.song.segments}")
         for i in range(1, len(self.song.segments)):
             # left and right boundaries
             l, r = self.sec2beats(self.song.segments[i - 1].start), self.sec2beats(self.song.segments[i].start)
@@ -168,7 +168,6 @@ class Performance:
 
         self.gesture_idx = 0
         self.play_idx = 0
-
 
         self.gestures = self.compose_gestures()
 

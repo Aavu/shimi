@@ -33,6 +33,7 @@ def recv_handler(s):
         except socket.timeout:
             continue
         data = json.loads(data.decode())
+        print(data['0'])
 
 
 def sleep(sec: int):
@@ -64,7 +65,7 @@ if __name__ == "__main__":
 
     if is_running:
         sock.sendto(serialize(NetworkCommand.START, genre="funk", song="Get_lucky"), (IP, PORT))
-        sleep(10)
+        sleep(30)
     # if is_running:
     #     sock.sendto(serialize(NetworkCommand.PAUSE), (IP, PORT))
     #     sleep(2)
@@ -78,7 +79,7 @@ if __name__ == "__main__":
     #     sock.sendto(serialize(NetworkCommand.START, genre="edm", song="All_around_the_world"), (IP, PORT))
     #     sleep(15)
 
-    if is_running:
-        sock.sendto(serialize(NetworkCommand.STOP), (IP, PORT))
+    # if is_running:
+    #     sock.sendto(serialize(NetworkCommand.STOP), (IP, PORT))
 
     terminate()
