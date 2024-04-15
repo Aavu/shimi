@@ -3,9 +3,9 @@ from typing import NamedTuple
 
 SIMULATE = True
 
-OUTPUT_AUDIO_DEVICE = "LG HDR 4K"  # "USB Audio Device"
+OUTPUT_AUDIO_DEVICE = "default"     # "LG HDR 4K"  # "USB Audio Device"
 
-PORT_NAME = "/dev/tty.usbserial-FT62AO7Z"
+PORT_NAME = "/dev/ttyUSB0"  # "/dev/tty.usbserial-FT62AO7Z"
 BAUD_RATE = 1000000
 ENCODER_RESOLUTION = 4096
 ACK_TIMEOUT_MS = 100
