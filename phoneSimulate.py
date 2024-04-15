@@ -7,7 +7,7 @@ import signal
 
 PORT = 8888
 RECV_PORT = PORT + 1
-IP = "127.0.0.1"  # "10.42.0.1"    # "127.0.0.1"
+IP = "127.0.0.1"    # "10.42.0.1"    # "127.0.0.1"
 
 RECV_BUFFER = 1024
 
@@ -33,7 +33,6 @@ def recv_handler(s):
         except socket.timeout:
             continue
         data = json.loads(data.decode())
-        print(data.get('0'))
 
 
 def sleep(sec: int):
@@ -50,6 +49,7 @@ if __name__ == "__main__":
 
     def terminate(signum=2, frame=None):
         global is_running, thread, sock
+        sock.sendto(serialize(NetworkCommand.STOP), (IP, PORT))
         is_running = False
         if thread.is_alive():
             thread.join()
@@ -63,20 +63,20 @@ if __name__ == "__main__":
     thread.start()
 
     if is_running:
-        sock.sendto(serialize(NetworkCommand.START, genre="edm", song="All_around_the_world"), (IP, PORT))
-        sleep(5)
-    if is_running:
-        sock.sendto(serialize(NetworkCommand.PAUSE), (IP, PORT))
-        sleep(2)
-    if is_running:
-        sock.sendto(serialize(NetworkCommand.START, genre="edm", song="All_around_the_world"), (IP, PORT))
-        sleep(5)
-    if is_running:
-        sock.sendto(serialize(NetworkCommand.STOP), (IP, PORT))
-        sleep(1)
-    if is_running:
-        sock.sendto(serialize(NetworkCommand.START, genre="edm", song="All_around_the_world"), (IP, PORT))
-        sleep(15)
+        sock.sendto(serialize(NetworkCommand.START, genre="funk", song="Get_lucky"), (IP, PORT))
+        sleep(10)
+    # if is_running:
+    #     sock.sendto(serialize(NetworkCommand.PAUSE), (IP, PORT))
+    #     sleep(2)
+    # if is_running:
+    #     sock.sendto(serialize(NetworkCommand.START, genre="edm", song="All_around_the_world"), (IP, PORT))
+    #     sleep(5)
+    # if is_running:
+    #     sock.sendto(serialize(NetworkCommand.STOP), (IP, PORT))
+    #     sleep(1)
+    # if is_running:
+    #     sock.sendto(serialize(NetworkCommand.START, genre="edm", song="All_around_the_world"), (IP, PORT))
+    #     sleep(15)
 
     if is_running:
         sock.sendto(serialize(NetworkCommand.STOP), (IP, PORT))

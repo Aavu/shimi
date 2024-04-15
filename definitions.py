@@ -3,7 +3,7 @@ from typing import NamedTuple
 
 SIMULATE = True
 
-OUTPUT_AUDIO_DEVICE = "LG HDR 4K"   # "USB Audio Device"
+OUTPUT_AUDIO_DEVICE = "LG HDR 4K"  # "USB Audio Device"
 
 PORT_NAME = "/dev/tty.usbserial-FT62AO7Z"
 BAUD_RATE = 1000000
@@ -11,6 +11,9 @@ ENCODER_RESOLUTION = 4096
 ACK_TIMEOUT_MS = 100
 
 UDP_PORT = 8888
+
+PACE_THRESHOLD = 0.5
+""" Segments with > PACE_THRESHOLD will be classified as Normal pace """
 
 
 class ADDR(IntEnum):
@@ -50,3 +53,8 @@ class Genre(Enum):
     EDM = "edm"
     FUNK = "funk"
     ROCK = "rock"
+
+
+class Pace(IntEnum):
+    SLOW = 0
+    NORMAL = 1

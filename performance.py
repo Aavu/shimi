@@ -48,10 +48,22 @@ class Performance:
         for p in os.listdir(self.gesture_lib_path):
             path = os.path.join(self.gesture_lib_path, p)
             if os.path.isdir(path):
-                temp = []
+                temp = {}
+                slow = []
+                norm = []
                 for f in os.listdir(path):
                     fpath = os.path.join(path, f)
-                    temp.append(self.load_gesture(fpath))
+                    fname: str = os.path.splitext(f)[0]
+                    pace, genre, sno = fname.split('_')
+                    g = self.load_gesture(fpath)
+                    if int(pace) == Pace.SLOW:
+                        slow.append(g)
+                    elif int(pace) == Pace.NORMAL:
+                        norm.append(g)
+                    else:
+                        raise NotInRangeException
+                temp[Pace.SLOW] = slow
+                temp[Pace.NORMAL] = norm
                 self.gesture_library[Genre(p)] = temp
 
     def sig_handle(self, num, frame):
@@ -97,15 +109,15 @@ class Performance:
         offset = 0
         last_idx = -1
 
-        # print(f"segments: {self.song.segments}")
+        print(f"segments: {self.song.segments}")
         for i in range(1, len(self.song.segments)):
-
             # left and right boundaries
-            l, r = self.sec2beats(self.song.segments[i - 1]), self.sec2beats(self.song.segments[i])
+            l, r = self.sec2beats(self.song.segments[i - 1].start), self.sec2beats(self.song.segments[i].start)
             seg_len = r - l
 
+            pace: Pace = Pace.NORMAL if self.song.segments[i - 1].pace > PACE_THRESHOLD else Pace.SLOW
             # choose a random gesture
-            gestures = self.gesture_library[self.song.genre]
+            gestures = self.gesture_library[self.song.genre][pace]
 
             # choose a random index (non-repeating) for gesture
             idx = random.choice([ii for ii in range(len(gestures)) if ii != last_idx])
@@ -141,6 +153,9 @@ class Performance:
             offset += residual_dur
 
             song_gesture.extend(seg_gesture)
+        # Adjust for feels
+        for i in range(len(song_gesture)):
+            song_gesture[i].start_beat += 0.25
 
         return song_gesture
 
@@ -154,7 +169,7 @@ class Performance:
         self.gesture_idx = 0
         self.play_idx = 0
 
-        # g = self.load_gesture("test.csv")
+
         self.gestures = self.compose_gestures()
 
     def stop(self):
@@ -173,20 +188,11 @@ class Performance:
         self.audio_processor.pause()
         self.paused = True
 
-    def pop_cmd(self) -> Command:
-        if self.gesture_idx < len(self.gestures):
-            cmd: Command = self.gestures[self.gesture_idx]
-            cmd.duration = self.beats2sec(cmd.duration)
-            cmd.start_beat = self.beats2sec(cmd.start_beat)
-            self.gesture_idx += 1
-            return cmd
-        return Command()    # return dummy command
-
     def callback(self, data: np.ndarray):
         # Haptic vibrations
         audio = np.mean(data, axis=1)
         data[:, 0] = audio
-        data[:, 1] = Util.biquad_lpf(audio, fc=100, fs=self.fs) * 2
+        data[:, 1] = Util.biquad_lpf(audio, fc=100, fs=self.fs) * 1.25
 
         # Motor actuation
         l = self.play_idx * self.chunk_size / self.fs
@@ -197,12 +203,15 @@ class Performance:
             self.udp.queue_to_send(line)
 
         # Add all the commands within this frame to the queue
-        cmd = self.pop_cmd()
-        w = cmd.start_beat - cmd.duration if cmd.dxl_id == 4 else cmd.start_beat
-        while cmd.is_valid and l <= w < r:
-            self.shimi.append_command(cmd)
-            cmd = self.pop_cmd()
-            w = cmd.start_beat - cmd.duration if cmd.dxl_id == 4 else cmd.start_beat
+        if self.gesture_idx < len(self.gestures):
+            cmd: Command = self.gestures[self.gesture_idx]
+            while l <= self.beats2sec(cmd.start_beat) < r:
+                cmd.duration = self.beats2sec(cmd.duration)
+                self.shimi.append_command(cmd)
+                self.gesture_idx += 1
+                if self.gesture_idx >= len(self.gestures):
+                    break
+                cmd = self.gestures[self.gesture_idx]
 
         self.play_idx += 1
         return data

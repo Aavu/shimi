@@ -1,13 +1,16 @@
 import json
 import pylrc
 from pylrc.classes import LyricLine
-from typing import List, Optional
+from typing import List, Tuple, Optional, NamedTuple
 import os
-import numpy as np
 from definitions import *
 
 
 class Song:
+    class Segment(NamedTuple):
+        start: float
+        pace: float
+
     def __init__(self, library_root_path: str, genre: Genre, song_name, sample_rate=44100):
         self.library_path = library_root_path
         self._genre = genre
@@ -63,13 +66,13 @@ class Song:
         """
         lrc = []
 
-        # Move lrc pointer to the minimum time since we dont need anything before this point in time
-        while self._lyrics[self.lrc_idx].time < min_sec:
+        # Move lrc pointer to the minimum time since we don't need anything before this point in time
+        while self.lrc_idx < len(self._lyrics) and self._lyrics[self.lrc_idx].time < min_sec:
             self.lrc_idx += 1
 
         while self.lrc_idx < len(self._lyrics) and self._lyrics[self.lrc_idx].time < max_sec:
             tmp = {0: self._lyrics[self.lrc_idx].text}
-            for i in range(1, num_future):
+            for i in range(1, num_future + 1):
                 tmp[i] = self._lyrics[self.lrc_idx + i].text if self.lrc_idx + i < len(self._lyrics) else ""
 
             lrc.append(tmp)
@@ -80,9 +83,16 @@ class Song:
         with open(self.meta_path) as f:
             data = json.load(f)
 
-        self._segments = np.array(data["segmentation"])
+        self._segments = self.parse_segmentation(data["segmentation"])
         self.bpm = data["tempo"]
         self.start = data["start"]
+
+    @staticmethod
+    def parse_segmentation(data: List[Tuple[float, float]]):
+        segments: List[Song.Segment] = []
+        for s, p in data:
+            segments.append(Song.Segment(s, p))
+        return segments
 
     def load_lyrics(self):
         with open(self.lyrics_path) as f:
