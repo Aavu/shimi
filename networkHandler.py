@@ -1,3 +1,8 @@
+"""
+Author: Raghavasimhan Sankaranarayanan
+Date created: 03/03/24
+"""
+
 import socket
 from threading import Thread, Condition, Lock
 from enum import IntEnum

@@ -1,3 +1,8 @@
+"""
+Author: Raghavasimhan Sankaranarayanan
+Date created: 03/03/24
+"""
+
 import numpy as np
 from enum import IntEnum
 

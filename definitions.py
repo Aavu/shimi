@@ -1,3 +1,8 @@
+"""
+Author: Raghavasimhan Sankaranarayanan
+Date created: 03/03/24
+"""
+
 from enum import IntEnum, Enum
 from typing import NamedTuple
 

@@ -1,3 +1,8 @@
+"""
+Author: Raghavasimhan Sankaranarayanan
+Date created: 03/03/24
+"""
+
 import time
 import wave
 from definitions import OUTPUT_AUDIO_DEVICE
